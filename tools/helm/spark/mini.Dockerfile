@@ -56,7 +56,6 @@ RUN set -ex && \
     touch /opt/spark/RELEASE && \
     rm /bin/sh && \
     ln -sv /bin/bash /bin/sh && \
-    ln -sv /usr/bin/python3 /usr/bin/python && \
     ln -sv /lib64/ld-linux-x86-64.so.2 /lib/ld-linux-x86-64.so.2 && \
     echo "auth required pam_wheel.so use_uid" >> /etc/pam.d/su && \
     chgrp root /etc/passwd && chmod ug+rw /etc/passwd && \
@@ -74,6 +73,7 @@ RUN mkdir -p /opt/spark/conf && \
 
 RUN apk add --no-cache python3 && \
     pip3 install --upgrade pip setuptools && \
+    ln -sv /usr/bin/python3 /usr/bin/python && \
     rm -r /root/.cache
 
 ADD jars /jars
