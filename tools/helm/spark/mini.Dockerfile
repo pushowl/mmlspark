@@ -23,27 +23,28 @@ ARG k8s_tests=kubernetes/tests
 
 
 # Get Spark from US Apache mirror.
-ENV APACHE_SPARK_VERSION 2.4.3
-ENV HADOOP_VERSION 3.1.2
-ENV HADOOP_GIT_COMMIT="release-3.2.0-RC1"
+ENV APACHE_SPARK_VERSION 2.4.5
+ENV HADOOP_VERSION 3.2.1
 
 ENV SPARK_HOME=/opt/spark
 
+RUN cd /tmp && \
+    echo "Downloading Spark" && \
+    wget http://apache.claz.org/spark/spark-${APACHE_SPARK_VERSION}/spark-${APACHE_SPARK_VERSION}-bin-without-hadoop.tgz -O spark.tgz && \
+    echo "Download Hadoop" && \
+    wget http://apache.claz.org/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz -O hadoop.tar.gz
 
 RUN set -ex && \
     apk upgrade --no-cache && \
     apk add --no-cache bash tini libc6-compat linux-pam && \
     mkdir -p /opt/spark && \
     mkdir -p /opt/spark/work-dir && \
-    echo "$LOG_TAG Getting SPARK_HOME" && \
     mkdir -p /opt && \
     cd /tmp && \
-    wget http://apache.claz.org/spark/spark-${APACHE_SPARK_VERSION}/spark-${APACHE_SPARK_VERSION}-bin-without-hadoop.tgz -O - | \
-        tar -xz && \
+    tar -xzf spark.tgz && \
     mkdir -p /opt/spark && \
     mv spark-${APACHE_SPARK_VERSION}-bin-without-hadoop /tmp/spark_bin && \
     echo Spark ${APACHE_SPARK_VERSION} installed in /opt/spark && \
-
     cp -r /tmp/spark_bin/${spark_jars} /opt/spark/jars && \
     cp -r /tmp/spark_bin/bin /opt/spark/bin && \
     cp -r /tmp/spark_bin/sbin /opt/spark/sbin && \
@@ -52,47 +53,30 @@ RUN set -ex && \
     cp -r /tmp/spark_bin/${k8s_tests} /opt/spark/tests && \
     cp -r /tmp/spark_bin/data /opt/spark/data && \
     cp -r /tmp/spark_bin/python /opt/spark/python && \
-
     touch /opt/spark/RELEASE && \
     rm /bin/sh && \
     ln -sv /bin/bash /bin/sh && \
+    ln -sv /usr/bin/python3 /usr/bin/python && \
+    ln -sv /lib64/ld-linux-x86-64.so.2 /lib/ld-linux-x86-64.so.2 && \
     echo "auth required pam_wheel.so use_uid" >> /etc/pam.d/su && \
     chgrp root /etc/passwd && chmod ug+rw /etc/passwd && \
     rm -r /tmp/spark_bin && \
-
-    echo "downloading hadoop" && \
-    cd /tmp && \
-    wget http://apache.claz.org/hadoop/common/hadoop-${HADOOP_VERSION}/hadoop-${HADOOP_VERSION}.tar.gz -O - | \
-    tar -xz && \
+    tar -xzf hadoop.tar.gz && \
     mv /tmp/hadoop-${HADOOP_VERSION} /opt/hadoop && \
     echo "export HADOOP_CLASSPATH=/opt/hadoop/share/hadoop/tools/lib/*" >> /opt/hadoop/etc/hadoop/hadoop-env.sh && \
     echo Hadoop ${HADOOP_VERSION} installed in /opt/hadoop && \
-    rm -rf /opt/hadoop/share/doc
+    rm -rf /opt/hadoop/share/doc && \
+    rm -f /tmp/spark.tgz /tmp/hadoop.tar.gz
 
 ENV HADOOP_HOME=/opt/hadoop
 RUN mkdir -p /opt/spark/conf && \
     echo "SPARK_DIST_CLASSPATH=/jars:/jars/*:$(/opt/hadoop/bin/hadoop classpath)" >> /opt/spark/conf/spark-env.sh
 
-
 RUN apk add --no-cache python3 && \
     pip3 install --upgrade pip setuptools && \
     rm -r /root/.cache
 
-# # if numpy is installed on a driver it needs to be installed on all
-# # workers, so install it everywhere
-# RUN apt-get update && \
-#     apt-get install -y g++ python-dev build-essential python3-dev && \
-#     curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && \
-#     python get-pip.py && \
-#     rm get-pip.py && \
-#     pip install -U pip setuptools wheel && \
-#     pip install numpy && \
-#     pip install matplotlib && \
-#     pip install pandas && \
-#     apt-get purge -y --auto-remove python-dev build-essential python3-dev && \
-#     apt-get clean && \
-#     rm -rf /var/lib/apt/lists/*
-
+ADD jars /jars
 ADD log4j.properties /opt/spark/conf/log4j.properties
 ADD start-common.sh start-worker start-master /
 ADD core-site.xml /opt/spark/conf/core-site.xml
